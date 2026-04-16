@@ -1,0 +1,4 @@
+async-timeout==5.0.1
+bleak==1.1.1
+dbus-fast==2.45.1
+typing_extensions==4.15.0

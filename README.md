@@ -1,6 +1,6 @@
-# sugar — Accu-Chek Guide Me glucose sync (Go)
+# sugar — Accu-Chek Guide Me glucose sync (Python)
 
-Single-file Go daemon that continuously syncs glucose records from an
+Single-file Python that continuously syncs glucose records from an
 Accu-Chek Guide Me to a TSV using the standard BLE Glucose Profile
 (service `0x1808`).
 
@@ -20,9 +20,8 @@ Everything goes through BlueZ D-Bus:
 ## Build + run
 
 ```sh
-go build -o sugar .
-cd ..                # run from project root so records.tsv lives there
-./go/sugar
+make venv
+./venv/bin/python3 download.py
 ```
 
 First run: put the meter in pairing mode (hold both arrows ~3s until the
