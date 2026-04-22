@@ -73,14 +73,10 @@ func mmolBands(prev Style, c cell, _ time.Time) Style {
 	if v <= 0 || c.Kind == "none" {
 		return prev
 	}
-	switch {
-	case v >= 4 && v < 8:
-		return Style{Bg: "#c8ecc8"}
-	case v >= 8 && v <= 10:
-		return Style{Bg: "#ffe0a8"}
-	default:
-		return Style{Bg: "#f4b4b4"}
+	if v >= 4 && v < 8 {
+		return prev
 	}
+	return Style{Bg: "#ffe0a8"}
 }
 
 type row struct {
@@ -94,7 +90,7 @@ type week struct {
 	Label   string
 	Rows    []row
 	HbA1c   string
-	EAG     string
+	Range   string
 	Damage  string
 	year    int
 	weekNum int
@@ -246,6 +242,12 @@ func weekAverageMmol(readings []reading, loc *time.Location, year, wk int) (floa
 	return sum / float64(n), n
 }
 
+func eagRange(eag float64) (lo, hi float64) {
+	lo = math.Min(5, eag*0.85)
+	hi = math.Min(20, eag*2-lo)
+	return
+}
+
 func buildWeeks(readings []reading, loc *time.Location, notes map[string]string) []week {
 	if len(readings) == 0 {
 		return nil
@@ -289,8 +291,9 @@ func buildWeeks(readings []reading, loc *time.Location, notes map[string]string)
 			eag, n := weekAverageMmol(readings, loc, yr, wn)
 			if n > 0 {
 				hb := eagToHbA1c(eag)
+				lo, hi := eagRange(eag)
 				w.HbA1c = fmt.Sprintf("%.1f", hb)
-				w.EAG = fmt.Sprintf("%.1f", eag)
+				w.Range = fmt.Sprintf("%.1f–%.1f", lo, hi)
 				w.Damage = fmtDamage(hb)
 			}
 			weeks = append(weeks, w)
@@ -431,14 +434,17 @@ const tpl = `<!doctype html>
   h1 { font-size: 18px; margin: 0 0 .2em 0; }
   .meta { color: #888; margin-bottom: 1em; font-size: 12px; }
   table { border-collapse: collapse; }
-  th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid #eee; min-width: 60px; }
+  table { border: 1px solid #bbb; }
+  th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid #ddd; border-right: 1px solid #c8c8c8; min-width: 60px; vertical-align: top; line-height: 20px; }
   th { text-align: left; font-weight: 600; background: #fafafa; border-bottom: 2px solid #ddd; }
   th:first-child, td:first-child { text-align: left; }
+  td.interp, td.none, td.exact { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; letter-spacing: -0.01em; padding: 0; }
+  td.interp > .val, td.none > .val, td.exact > .val { display: block; padding: 6px 10px; }
   td.interp { font-style: italic; }
   td.none { color: #ddd; }
   td.exact { color: #111; }
   tr.week td { background: #222; color: #fff; text-align: left; font-weight: 600; font-size: 12px; padding: 4px 10px; }
-  td.note { text-align: left; color: #555; font-size: 12px; min-width: 180px; cursor: text; white-space: nowrap; }
+  td.note { text-align: left; color: #555; font-size: 12px; min-width: 180px; cursor: text; white-space: pre; padding: 0 10px; line-height: 32px; }
   td.note:empty::before { content: "…"; color: #ccc; }
   td.note:focus { outline: none; background: #ffc; }
   td.note.saved { background: #e8f5e8; transition: background 0.3s; }
@@ -501,14 +507,14 @@ const tpl = `<!doctype html>
   <td>{{.Date}}</td>
   <td>{{.Day}}</td>
   {{range .Cells}}
-    <td class="{{.Kind}}" style="{{.Style}}">{{.Value}}</td>
+    <td class="{{.Kind}}"><span class="val" style="{{.Style}}">{{.Value}}</span></td>
   {{end}}
   <td class="note" contenteditable="true" data-date="{{.Date}}">{{.Note}}</td>
   <td><button class="graph-btn" data-date="{{.Date}}">Graph</button></td>
 </tr>
 {{end}}
 {{if .HbA1c}}
-<tr class="hba1c"><td colspan="{{$.ColCount}}">Estimated HbA1c: {{.HbA1c}}% · eAG: {{.EAG}} mmol/L<br>Damage Index: {{.Damage}}</td></tr>
+<tr class="hba1c"><td colspan="{{$.ColCount}}">Estimated HbA1c: {{.HbA1c}}% · Range: {{.Range}} mmol/L<br>Damage Index: {{.Damage}}</td></tr>
 {{end}}
 {{end}}
 </tbody>
@@ -915,14 +921,11 @@ document.querySelectorAll('td.note').forEach(function(el) {
       fetch('/notes', {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: 'date=' + encodeURIComponent(td.dataset.date) + '&note=' + encodeURIComponent(td.textContent.trim())
+        body: 'date=' + encodeURIComponent(td.dataset.date) + '&note=' + encodeURIComponent(td.innerText)
       }).then(function(r) {
         if (r.ok) { td.classList.add('saved'); setTimeout(function(){ td.classList.remove('saved'); }, 800); }
       });
     }, 400);
-  });
-  el.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') { e.preventDefault(); this.blur(); }
   });
 });
 </script>
